@@ -20,7 +20,7 @@ Set-up is super simple and straight-forward.
 
 1. Copy the .env.example file as .env
 2. Set all the .env vars in this file properly. Including your mnemonic key.
-3. Copy over the correct `type.json` for your chain onto `src/types/types.json`. You can overwrite the current file since this is for the OAX chain.
+3. Copy over the correct `type.json` for your chain onto `src/types/types.json`. This one is setup for the Imbue chain currently locally will be updated for testnet soon
 4. If you want to change the Help or Error Messages, you can open `app.js` and make these changes
 
 ## Run
