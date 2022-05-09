@@ -1,0 +1,14 @@
+node_modules/
+postgres-data/
+*.log
+*.env*
+
+# vim
+*.swp
+*.swo
+*.env
+
+.DS_Store
+
+.vscode/
+.idea/
