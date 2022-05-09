@@ -20,7 +20,7 @@ class GenericFaucetInterface {
     this.mnemonic = config.mnemonic;
     this.keyRing = undefined;
     this.providerUrl = config.providerUrl;
-    this.amount = 1000;
+    this.amount = config.amount;
     this.tokenName = config.tokenName;
     this.addressType = config.addressType;
     this.timeLimitHours = config.timeLimitHours;
@@ -89,7 +89,7 @@ class GenericFaucetInterface {
     // console.log('nonce:', nonce)
     let nonce = crypto.randomBytes(16).toString('base64');
     const parsedAmount = this.decimals.mul(new BN(this.amount));
-    console.log(`Sending 1000 ${this.tokenName} to ${address}`);
+    console.log(`Sending 100 ${this.tokenName} to ${address}`);
     const transfer = this.api.tx.balances.transfer(address, parsedAmount);
     
     // const hash = await transfer.signAndSend(this.keyRing,  { nonce: -1 });
@@ -109,7 +109,7 @@ class GenericFaucetInterface {
 
     const address = this.getAddressFromMessage(message);
     if (address) {
-      response = `Sending 1000 ${this.tokenName} to ${address}!`;
+      response = `Sending 100 ${this.tokenName} to ${address}!`;
       // if exists
       if (senderRecords) {
         // make sure last request was long time ago
@@ -138,7 +138,15 @@ class GenericFaucetInterface {
     }
     return response;
   }
+
+  //TODO WIP for multitoken faucet
+async chooseToken(message) {
+  let list = ` Please use the /imbu /kusd /ksm command to receive a new fact`
+  return list;
 }
+}
+
+
 
 // load env vars
 require("dotenv").config();
@@ -176,8 +184,7 @@ bot.help(async (ctx) => {
 
 // On request token type
 bot.command("type", async (ctx) => {
-  console.log("");
-  const resp = await faucet.requestToken(ctx.message);
+  const resp = await faucet.chooseToken(ctx.message);
   await ctx.reply(resp);
 });
 
