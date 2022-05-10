@@ -81,9 +81,28 @@ class GenericFaucetInterface {
     console.log(
       `You are connected to chain ${chain} using ${nodeName} v${nodeVersion}`
     );
+
   }
   async sendToken(address) {
-    const api = await this.initApi();
+    
+    const ws = new WsProvider(this.providerUrl);
+    // Instantiate the API
+    
+    this.api = await ApiPromise.create({ types: this.types, provider: ws });
+    
+    // Retrieve the chain & node information information via rpc calls
+    const [chain, nodeName, nodeVersion] = await Promise.all([
+      this.api.rpc.system.chain(),
+      this.api.rpc.system.name(),
+      this.api.rpc.system.version(),
+    ]);
+   
+    // Log these stats
+    console.log(
+      `You are connected to chain ${chain} using ${nodeName} v${nodeVersion}`
+    );
+    
+
     this.initKeyring();
     // const nonce = await this.api.rpc.system.accountNextIndex('5EhrCtDaQRYjVbLi7BafbGpFqcMhjZJdu8eW8gy6VRXh6HDp');
     // console.log('nonce:', nonce)
@@ -97,6 +116,7 @@ class GenericFaucetInterface {
     const hash = await this.api.tx.balances.transfer(address, parsedAmount)
     .signAndSend(this.keyRing, nonce)
     console.log("Transfer sent with hash", hash.toHex());
+    await this.api.disconnect();
   }
   // function that telgram bot calls
   async requestToken(message) {
