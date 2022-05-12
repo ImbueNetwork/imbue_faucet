@@ -12,7 +12,7 @@ const fs = require("fs");
 const ADDITIONAL_TYPES = require("./types/types.json");
 
 
-const commands = ["/request", "/schedule"]
+const commands = ["/request", "/schedule","/approve","/milestone"]
 
 // this is the Generic Faucet Interface
 class GenericFaucetInterface {
@@ -35,8 +35,15 @@ class GenericFaucetInterface {
     "/request ADDRESS" 
     with your correct ${this.tokenName} address.
     
-    To approve your project for funding sent the message:
+    To open your project for funding send the message:
     "/schedule ADDRESS" 
+
+    To approve your project's funding send the message:
+    "/approve ADDRESS" 
+
+    To approve your project's first milestone send the message:
+    "/milestone ADDRESS"
+
     with your correct ${this.tokenName} address.
     `;
     // Error Messages
@@ -44,8 +51,6 @@ class GenericFaucetInterface {
     this.invalidAddressMessage = `Invalid address! Plese use the generic substrate format with address type ${this.addressType}!`;
     // record storage (for time limit)
     this.records = {};
-
-
   }
 
 
@@ -80,8 +85,6 @@ class GenericFaucetInterface {
 
   // This initializes api
   async initApi() {
-
-
     const ws = new WsProvider(this.providerUrl);
     // Instantiate the API
 
@@ -99,6 +102,18 @@ class GenericFaucetInterface {
       `You are connected to chain ${chain} using ${nodeName} v${nodeVersion}`
     );
 
+  }
+
+  async findProjectByAddress(address) {
+    const projects = await (await this.api.query.imbueProposals.projects.entries());
+    let projectsLength = Object.keys(projects).length;
+    for (var i = projectsLength - 1; i >= 0; i--) {
+      const [id, project] = projects[i];
+      const readableProject = project.toHuman();
+      if (readableProject.initiator == address) {
+        return readableProject;
+      }
+    }
   }
 
   async scheduleRound(message) {
@@ -121,30 +136,102 @@ class GenericFaucetInterface {
       ]);
       this.initKeyring();
       // Log these stats
-      const projects = await (await this.api.query.imbueProposals.projects.entries());
-      const lastHeader = await this.api.rpc.chain.getHeader();
-      const currentBlockNumber = lastHeader.number.toBigInt();
-      console.log(`last block #${lastHeader.number} has hash ${lastHeader.hash}`);
+      const readableProject = await this.findProjectByAddress(address);
+      if (readableProject) {
+        console.log("***** scheduling round for project *****");
 
-      let projectsLength = Object.keys(projects).length;
-      for (var i = projectsLength - 1; i >= 0; i--) {
-        const [id, project] = projects[i];
-        const readableProject = project.toHuman();
-
-        if (readableProject.initiator == address) {
-          const projectId = BigInt(readableProject.milestones[0].projectKey);
-          console.log(readableProject);
-
-          const startBlock = currentBlockNumber + BigInt(5);
-          const endBlock = startBlock + BigInt(100);
-          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.scheduleRound(startBlock, endBlock, [projectId])).signAndSend(this.keyRing, ({ events = [], status }) => {
-          });
-
-          response = `Project "${readableProject.name.toUpperCase()}" has been approved for funding.\n\n Contributors can fund between blocks ${startBlock} and ${endBlock}.`;
-          break;
-        }
+        console.log(readableProject);
+        const lastHeader = await this.api.rpc.chain.getHeader();
+        const currentBlockNumber = lastHeader.number.toBigInt();
+        const firstMilestone = readableProject.milestones[0]
+        const projectId = BigInt(firstMilestone.projectKey);
+        const startBlock = currentBlockNumber + BigInt(1);
+        const endBlock = startBlock + BigInt(100);
+        const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.scheduleRound(startBlock, endBlock, [projectId])).signAndSend(this.keyRing, ({ events = [], status }) => {
+        });
+        response = `Project "${readableProject.name.toUpperCase()}" has been scheduled for funding.\n\n Contributors can fund between blocks ${startBlock} and ${endBlock}.`;
+        await this.api.disconnect();
       }
-      await this.api.disconnect();
+    } else {
+      response = this.invalidAddressMessage;
+    }
+    return response;
+  }
+
+  async approve(message) {
+    let response;
+    const now = Date.now();
+    //   const username = message["from"]["username"];
+    const senderId = message["from"]["id"];
+    let nonce = crypto.randomBytes(16).toString('base64');
+    const address = this.getAddressFromMessage(message);
+
+    if (address) {
+      const ws = new WsProvider(this.providerUrl);
+      // Instantiate the API
+      this.api = await ApiPromise.create({ types: this.types, provider: ws });
+      // Retrieve the chain & node information information via rpc calls
+      const [chain, nodeName, nodeVersion] = await Promise.all([
+        this.api.rpc.system.chain(),
+        this.api.rpc.system.name(),
+        this.api.rpc.system.version(),
+      ]);
+      this.initKeyring();
+      // Log these stats
+      const readableProject = await this.findProjectByAddress(address);
+      if (readableProject) {
+        console.log("***** approving project *****");
+        console.log(readableProject);
+        const firstMilestone = readableProject.milestones[0];
+
+        const projectId = BigInt(firstMilestone.projectKey);
+        const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId,null)).signAndSend(this.keyRing, ({ events = [], status }) => {
+        });
+        response = `Project "${readableProject.name.toUpperCase()}" funding has been approved. You can now submit your milestones!`;
+        await this.api.disconnect();
+      }
+    } else {
+      response = this.invalidAddressMessage;
+    }
+    return response;
+  }
+
+  async approveMilestone(message) {
+    let response;
+    const now = Date.now();
+    //   const username = message["from"]["username"];
+    const senderId = message["from"]["id"];
+    let nonce = crypto.randomBytes(16).toString('base64');
+    const address = this.getAddressFromMessage(message);
+
+    if (address) {
+      const ws = new WsProvider(this.providerUrl);
+      // Instantiate the API
+      this.api = await ApiPromise.create({ types: this.types, provider: ws });
+      // Retrieve the chain & node information information via rpc calls
+      const [chain, nodeName, nodeVersion] = await Promise.all([
+        this.api.rpc.system.chain(),
+        this.api.rpc.system.name(),
+        this.api.rpc.system.version(),
+      ]);
+      this.initKeyring();
+      // Log these stats
+      const readableProject = await this.findProjectByAddress(address);
+      if (readableProject) {
+        console.log(readableProject);
+        console.log("***** approving milestone *****");
+        const firstMilestone = readableProject.milestones[0];
+        const projectId = BigInt(firstMilestone.projectKey);
+        if(firstMilestone.isApproved) {
+          response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has already been approved. You can now withdraw ${firstMilestone.percentageToUnlock}% of the total required funds`;
+        } else {
+          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId,[0])).signAndSend(this.keyRing, ({ events = [], status }) => {
+          });
+          response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has been approved. You can now withdraw ${firstMilestone.percentageToUnlock}% of the total required funds`;
+        }
+
+        await this.api.disconnect();
+      }
     } else {
       response = this.invalidAddressMessage;
     }
@@ -267,23 +354,32 @@ bot.help(async (ctx) => {
   await ctx.reply(faucet.getHelpMessage());
 });
 
-// On request token type
 bot.command("type", async (ctx) => {
   const resp = await faucet.chooseToken(ctx.message);
   await ctx.reply(resp);
 });
 
-// On request token command
 bot.command("request", async (ctx) => {
   const resp = await faucet.requestToken(ctx.message);
   await ctx.reply(resp);
 });
 
-// On request token command
 bot.command("schedule", async (ctx) => {
   const resp = await faucet.scheduleRound(ctx.message);
   await ctx.reply(resp);
 });
 
+
+bot.command("approve", async (ctx) => {
+  const resp = await faucet.approve(ctx.message);
+  await ctx.reply(resp);
+});
+
+
+// On request token command
+bot.command("milestone", async (ctx) => {
+  const resp = await faucet.approveMilestone(ctx.message);
+  await ctx.reply(resp);
+});
 // Run the bot
 bot.launch();
