@@ -12,7 +12,7 @@ const fs = require("fs");
 const ADDITIONAL_TYPES = require("./types/types.json");
 
 
-const commands = ["/request", "/schedule","/approve","/milestone"]
+const commands = ["/request", "/schedule", "/approve", "/milestone"]
 
 // this is the Generic Faucet Interface
 class GenericFaucetInterface {
@@ -185,9 +185,14 @@ class GenericFaucetInterface {
         const firstMilestone = readableProject.milestones[0];
 
         const projectId = BigInt(firstMilestone.projectKey);
-        const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId,null)).signAndSend(this.keyRing, ({ events = [], status }) => {
-        });
-        response = `Project "${readableProject.name.toUpperCase()}" funding has been approved. You can now submit your milestones!`;
+
+        if (readableProject.contributions.length < 1) {
+          response = `Project  "${readableProject.name.toUpperCase()}" has no contributions. Cannot approve funding!`;
+        } else {
+          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId, null)).signAndSend(this.keyRing, ({ events = [], status }) => {
+          });
+          response = `Project "${readableProject.name.toUpperCase()}" funding has been approved. You can now submit your milestones!`;
+        }
         await this.api.disconnect();
       }
     } else {
@@ -222,10 +227,12 @@ class GenericFaucetInterface {
         console.log("***** approving milestone *****");
         const firstMilestone = readableProject.milestones[0];
         const projectId = BigInt(firstMilestone.projectKey);
-        if(firstMilestone.isApproved) {
+        if (firstMilestone.isApproved) {
           response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has already been approved. You can now withdraw ${firstMilestone.percentageToUnlock}% of the total required funds`;
+        } else if (readableProject.contributions.length < 1) {
+          response = `Project "${readableProject.name.toUpperCase()}" has no contributions. Cannot approve milestone voting!`;
         } else {
-          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId,[0])).signAndSend(this.keyRing, ({ events = [], status }) => {
+          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId, [0])).signAndSend(this.keyRing, ({ events = [], status }) => {
           });
           response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has been approved. You can now withdraw ${firstMilestone.percentageToUnlock}% of the total required funds`;
         }
