@@ -48,7 +48,7 @@ class GenericFaucetInterface {
     `;
     // Error Messages
     this.timeLimitMessage = `Sorry please wait for ${this.timeLimitHours} hours, between token requests from the same telegram account!`;
-    this.invalidAddressMessage = `Invalid address! Plese use the generic substrate format with address type ${this.addressType}!`;
+    this.invalidAddressMessage = `Invalid address! Please use the generic substrate format with address type ${this.addressType}!`;
     // record storage (for time limit)
     this.records = {};
   }
