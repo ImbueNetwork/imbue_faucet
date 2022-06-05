@@ -147,7 +147,7 @@ class GenericFaucetInterface {
         const projectId = BigInt(firstMilestone.projectKey);
         const startBlock = currentBlockNumber + BigInt(1);
         const endBlock = startBlock + BigInt(100);
-        const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.scheduleRound(startBlock, endBlock, [projectId])).signAndSend(this.keyRing, ({ events = [], status }) => {
+        const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.scheduleRound(startBlock, endBlock, [projectId],0)).signAndSend(this.keyRing, ({ events = [], status }) => {
         });
         response = `Project "${readableProject.name.toUpperCase()}" has been scheduled for funding.\n\n Contributors can fund between blocks ${startBlock} and ${endBlock}.`;
         await this.api.disconnect();
