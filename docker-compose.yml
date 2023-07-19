@@ -1,0 +1,8 @@
+version: "3.2"
+services:
+  imbue-bot:
+    container_name: imbue-bot
+    image: samelamin/imbue-bot
+    environment:
+      TELEGRAM_TOKEN: "${TELEGRAM_TOKEN}"
+      NODE_WS_URL: "${NODE_WS_URL}"
