@@ -1,20 +1,25 @@
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 // Telegram API client
 const { Telegraf } = require("telegraf");
 // this is for address format verification
 const UtilCrypto = require("@polkadot/util-crypto");
 // connect to the node
-const { ApiPromise, WsProvider, Keyring, ApiRx} = require("@polkadot/api");
+const { ApiPromise, WsProvider, Keyring, ApiRx } = require("@polkadot/api");
 const { BN } = require("bn.js");
 const fs = require("fs");
 // this is .json additional types file
 const ADDITIONAL_TYPES = require("./types/types.json");
-const {switchMap} = require("rxjs/operators");
+const { switchMap } = require("rxjs/operators");
 const utils = require("./utils");
 
-
-const commands = ["/request", "/schedule", "/approve", "/milestone","/democracy"]
+const commands = [
+  "/request",
+  "/schedule",
+  "/approve",
+  "/milestone",
+  "/democracy",
+];
 
 // this is the Generic Faucet Interface
 class GenericFaucetInterface {
@@ -58,12 +63,11 @@ class GenericFaucetInterface {
     this.records = {};
   }
 
-
   // tries to get valid address from message, if fails, returns undefined
   getAddressFromMessage(message) {
     let address = message.text;
     commands.forEach((command) => {
-      address = address.replace(command, '').replace(' ', '');
+      address = address.replace(command, "").replace(" ", "");
     });
     const check = UtilCrypto.checkAddress(address, this.addressType);
     if (check[0]) {
@@ -87,7 +91,6 @@ class GenericFaucetInterface {
     this.keyRing = keyring.addFromMnemonic(this.mnemonic);
   }
 
-
   // This initializes api
   async initApi() {
     const ws = new WsProvider(this.providerUrl);
@@ -106,11 +109,11 @@ class GenericFaucetInterface {
     console.log(
       `You are connected to chain ${chain} using ${nodeName} v${nodeVersion}`
     );
-
   }
 
   async findProjectByAddress(address) {
-    const projects = await (await this.api.query.imbueProposals.projects.entries());
+    const projects =
+      await await this.api.query.imbueProposals.projects.entries();
     let projectsLength = Object.keys(projects).length;
     for (var i = projectsLength - 1; i >= 0; i--) {
       const [id, project] = projects[i];
@@ -121,7 +124,7 @@ class GenericFaucetInterface {
     }
   }
 
-  async findDemocracy() {
+  async findDemocracy(ctx) {
     let response;
     const eventsFilter = utils.getEventSections();
     const ws = new WsProvider(this.providerUrl);
@@ -129,33 +132,30 @@ class GenericFaucetInterface {
 
     this.api = await ApiPromise.create({ types: this.types, provider: ws });
     ApiRx.create({ types: this.types, provider: ws })
-        .pipe(
-            switchMap((api) =>
-                api.query.system.events()
-            ))
-        // subscribe to system events via storage
-        .subscribe(async (events) => {
-          for (const record of events) {
-            // extract the event object
-            const { event, phase } = record;
-            // check section filter
-            if (eventsFilter.includes(event.section.toString()) || eventsFilter.includes("all")) {
-
-              // create event object for data sink
-              const eventObj = {
-                section: event.section,
-                method: event.method,
-                //meta: event.meta.documentation.toString(),
-                data: event.data.toString()
-              }
-              // remove this log if not needed
-              console.log('Event Received: ' + Date.now() + ": " + JSON.stringify(eventObj));
-              response = JSON.stringify(eventObj);
-              return response;
-            }
-          }
-        });
-    console.log("Hello",response)
+      .pipe(switchMap((api) => api.query.system.events()))
+      .subscribe(async (events) => {
+        events
+          .filter(
+            ({ event: { section } }) =>
+              section === "preimage" ||
+              section === "council" ||
+              section === "democracy" 
+          )
+          .map(async ({ event: { section, meta, data, method } }) => {
+            const eventObj = {
+              section: section,
+              method: method,
+              meta: meta.toHuman(),
+              data: data.toHuman(),
+            };
+            const logMessage = JSON.stringify(
+              JSON.parse(JSON.stringify(eventObj)),
+              null,
+              "\t"
+            );
+            await ctx.telegram.sendMessage(ctx.message.chat.id, logMessage);
+          });
+      });
   }
 
   async scheduleRound(message) {
@@ -163,7 +163,7 @@ class GenericFaucetInterface {
     const now = Date.now();
     //   const username = message["from"]["username"];
     const senderId = message["from"]["id"];
-    let nonce = crypto.randomBytes(16).toString('base64');
+    let nonce = crypto.randomBytes(16).toString("base64");
     const address = this.getAddressFromMessage(message);
 
     if (address) {
@@ -185,12 +185,20 @@ class GenericFaucetInterface {
         console.log(readableProject);
         const lastHeader = await this.api.rpc.chain.getHeader();
         const currentBlockNumber = lastHeader.number.toBigInt();
-        const firstMilestone = readableProject.milestones[0]
+        const firstMilestone = readableProject.milestones[0];
         const projectId = BigInt(firstMilestone.projectKey);
         const startBlock = currentBlockNumber + BigInt(1);
         const endBlock = startBlock + BigInt(100);
-        const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.scheduleRound(startBlock, endBlock, [projectId],0)).signAndSend(this.keyRing, ({ events = [], status }) => {
-        });
+        const hash = await this.api.tx.sudo
+          .sudo(
+            this.api.tx.imbueProposals.scheduleRound(
+              startBlock,
+              endBlock,
+              [projectId],
+              0
+            )
+          )
+          .signAndSend(this.keyRing, ({ events = [], status }) => {});
         response = `Project "${readableProject.name.toUpperCase()}" has been scheduled for funding.\n\n Contributors can fund between blocks ${startBlock} and ${endBlock}.`;
         await this.api.disconnect();
       }
@@ -205,7 +213,7 @@ class GenericFaucetInterface {
     const now = Date.now();
     //   const username = message["from"]["username"];
     const senderId = message["from"]["id"];
-    let nonce = crypto.randomBytes(16).toString('base64');
+    let nonce = crypto.randomBytes(16).toString("base64");
     const address = this.getAddressFromMessage(message);
 
     if (address) {
@@ -231,8 +239,9 @@ class GenericFaucetInterface {
         if (readableProject.contributions.length < 1) {
           response = `Project  "${readableProject.name.toUpperCase()}" has no contributions. Cannot approve funding!`;
         } else {
-          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId, null)).signAndSend(this.keyRing, ({ events = [], status }) => {
-          });
+          const hash = await this.api.tx.sudo
+            .sudo(this.api.tx.imbueProposals.approve(projectId, null))
+            .signAndSend(this.keyRing, ({ events = [], status }) => {});
           response = `Project "${readableProject.name.toUpperCase()}" funding has been approved. You can now submit your milestones!`;
         }
         await this.api.disconnect();
@@ -248,7 +257,7 @@ class GenericFaucetInterface {
     const now = Date.now();
     //   const username = message["from"]["username"];
     const senderId = message["from"]["id"];
-    let nonce = crypto.randomBytes(16).toString('base64');
+    let nonce = crypto.randomBytes(16).toString("base64");
     const address = this.getAddressFromMessage(message);
 
     if (address) {
@@ -270,13 +279,18 @@ class GenericFaucetInterface {
         const firstMilestone = readableProject.milestones[0];
         const projectId = BigInt(firstMilestone.projectKey);
         if (firstMilestone.isApproved) {
-          response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has already been approved. You can now withdraw ${firstMilestone.percentageToUnlock}% of the total required funds`;
+          response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has already been approved. You can now withdraw ${
+            firstMilestone.percentageToUnlock
+          }% of the total required funds`;
         } else if (readableProject.contributions.length < 1) {
           response = `Project "${readableProject.name.toUpperCase()}" has no contributions. Cannot approve milestone voting!`;
         } else {
-          const hash = await this.api.tx.sudo.sudo(this.api.tx.imbueProposals.approve(projectId, [0])).signAndSend(this.keyRing, ({ events = [], status }) => {
-          });
-          response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has been approved. You can now withdraw ${firstMilestone.percentageToUnlock}% of the total required funds`;
+          const hash = await this.api.tx.sudo
+            .sudo(this.api.tx.imbueProposals.approve(projectId, [0]))
+            .signAndSend(this.keyRing, ({ events = [], status }) => {});
+          response = `Project "${readableProject.name.toUpperCase()}" first milestone [${firstMilestone.name.toUpperCase()}] has been approved. You can now withdraw ${
+            firstMilestone.percentageToUnlock
+          }% of the total required funds`;
         }
 
         await this.api.disconnect();
@@ -288,7 +302,6 @@ class GenericFaucetInterface {
   }
 
   async sendToken(address) {
-
     const ws = new WsProvider(this.providerUrl);
     // Instantiate the API
     this.api = await ApiPromise.create({ types: this.types, provider: ws });
@@ -306,14 +319,15 @@ class GenericFaucetInterface {
 
     // const nonce = await this.api.rpc.system.accountNextIndex('5EhrCtDaQRYjVbLi7BafbGpFqcMhjZJdu8eW8gy6VRXh6HDp');
     // console.log('nonce:', nonce)
-    let nonce = crypto.randomBytes(16).toString('base64');
+    let nonce = crypto.randomBytes(16).toString("base64");
     const parsedAmount = this.decimals.mul(new BN(this.amount));
     console.log(`Sending 100 ${this.tokenName} to ${address}`);
     const transfer = this.api.tx.balances.transfer(address, parsedAmount);
 
     // const hash = await transfer.signAndSend(this.keyRing,  { nonce: -1 });
-    const hash = await this.api.tx.balances.transfer(address, parsedAmount)
-      .signAndSend(this.keyRing, nonce)
+    const hash = await this.api.tx.balances
+      .transfer(address, parsedAmount)
+      .signAndSend(this.keyRing, nonce);
     console.log("Transfer sent with hash", hash.toHex());
     await this.api.disconnect();
   }
@@ -361,12 +375,10 @@ class GenericFaucetInterface {
 
   //TODO WIP for multitoken faucet
   async chooseToken(message) {
-    let list = ` Please use the /imbu /kusd /ksm command to receive a new fact`
+    let list = ` Please use the /imbu /kusd /ksm command to receive a new fact`;
     return list;
   }
 }
-
-
 
 // load env vars
 require("dotenv").config();
@@ -388,20 +400,22 @@ const faucet = new GenericFaucetInterface(config);
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 // Initialize the faucet
 
-
 // On user starting convo
-bot.start(async (ctx) => {
-  await ctx.reply(faucet.getHelpMessage());
-}).catch(function (error) {
-  if (error.response && error.response.statusCode === 403) {
-    console.log('error')
-  }
-});;
+bot
+  .start(async (ctx) => {
+    // await ctx.reply(faucet.getHelpMessage());
+    await ctx.reply();
+  })
+  .catch(function (error) {
+    if (error.response && error.response.statusCode === 403) {
+      console.log("error");
+    }
+  });
 
-// On user types help
-bot.help(async (ctx) => {
-  await ctx.reply(faucet.getHelpMessage());
-});
+// // On user types help
+// bot.help(async (ctx) => {
+//   await ctx.reply(faucet.getHelpMessage());
+// });
 
 bot.command("type", async (ctx) => {
   const resp = await faucet.chooseToken(ctx.message);
@@ -418,12 +432,10 @@ bot.command("schedule", async (ctx) => {
   await ctx.reply(resp);
 });
 
-
 bot.command("approve", async (ctx) => {
   const resp = await faucet.approve(ctx.message);
   await ctx.reply(resp);
 });
-
 
 // On request token command
 bot.command("milestone", async (ctx) => {
@@ -433,7 +445,7 @@ bot.command("milestone", async (ctx) => {
 
 // On request token command
 bot.command("democracy", async (ctx) => {
-  const resp = await faucet.findDemocracy();
+  const resp = await faucet.findDemocracy(ctx);
   await ctx.reply(resp);
 });
 
