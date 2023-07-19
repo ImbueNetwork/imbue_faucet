@@ -125,12 +125,10 @@ class GenericFaucetInterface {
   }
 
   async findDemocracy(ctx) {
-    let response;
-    const eventsFilter = utils.getEventSections();
     const ws = new WsProvider(this.providerUrl);
-    // Instantiate the API
-
     this.api = await ApiPromise.create({ types: this.types, provider: ws });
+    let response = `*** STARTING TO MONITOR DEMOCRACY CHAIN EVENTS @ ${this.providerUrl} ***`;
+    await ctx.telegram.sendMessage(ctx.message.chat.id, response);
     ApiRx.create({ types: this.types, provider: ws })
       .pipe(switchMap((api) => api.query.system.events()))
       .subscribe(async (events) => {
@@ -139,7 +137,7 @@ class GenericFaucetInterface {
             ({ event: { section } }) =>
               section === "preimage" ||
               section === "council" ||
-              section === "democracy" 
+              section === "democracy"
           )
           .map(async ({ event: { section, meta, data, method } }) => {
             const eventObj = {
@@ -148,12 +146,12 @@ class GenericFaucetInterface {
               meta: meta.toHuman(),
               data: data.toHuman(),
             };
-            const logMessage = JSON.stringify(
+            response = JSON.stringify(
               JSON.parse(JSON.stringify(eventObj)),
               null,
               "\t"
             );
-            await ctx.telegram.sendMessage(ctx.message.chat.id, logMessage);
+            await ctx.telegram.sendMessage(ctx.message.chat.id, response);
           });
       });
   }
