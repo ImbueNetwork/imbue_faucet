@@ -5,14 +5,16 @@ const { Telegraf } = require("telegraf");
 // this is for address format verification
 const UtilCrypto = require("@polkadot/util-crypto");
 // connect to the node
-const { ApiPromise, WsProvider, Keyring } = require("@polkadot/api");
+const { ApiPromise, WsProvider, Keyring, ApiRx} = require("@polkadot/api");
 const { BN } = require("bn.js");
 const fs = require("fs");
 // this is .json additional types file
 const ADDITIONAL_TYPES = require("./types/types.json");
+const {switchMap} = require("rxjs/operators");
+const utils = require("./utils");
 
 
-const commands = ["/request", "/schedule", "/approve", "/milestone"]
+const commands = ["/request", "/schedule", "/approve", "/milestone","/democracy"]
 
 // this is the Generic Faucet Interface
 class GenericFaucetInterface {
@@ -43,6 +45,9 @@ class GenericFaucetInterface {
 
     To approve your project's first milestone send the message:
     "/milestone ADDRESS"
+    
+    To get democracy events:
+    "/democracy"
 
     with your correct ${this.tokenName} address.
     `;
@@ -114,6 +119,42 @@ class GenericFaucetInterface {
         return readableProject;
       }
     }
+  }
+
+  async findDemocracy() {
+    let response;
+    const eventsFilter = utils.getEventSections();
+    const ws = new WsProvider(this.providerUrl);
+    // Instantiate the API
+
+    this.api = await ApiPromise.create({ types: this.types, provider: ws });
+    ApiRx.create({ types: this.types, provider: ws })
+        .pipe(
+            switchMap((api) =>
+                api.query.system.events()
+            ))
+        // subscribe to system events via storage
+        .subscribe(async (events) => {
+          for (const record of events) {
+            // extract the event object
+            const { event, phase } = record;
+            // check section filter
+            if (eventsFilter.includes(event.section.toString()) || eventsFilter.includes("all")) {
+              // create event object for data sink
+              console.log("Events",event)
+              const eventObj = {
+                section: event.section,
+                method: event.method,
+                //meta: event.meta.documentation.toString(),
+                data: event.data.toString()
+              }
+              // remove this log if not needed
+              console.log('Event Received: ' + Date.now() + ": " + JSON.stringify(eventObj));
+            }
+          }
+        });
+    return "hello";
+
   }
 
   async scheduleRound(message) {
@@ -388,5 +429,12 @@ bot.command("milestone", async (ctx) => {
   const resp = await faucet.approveMilestone(ctx.message);
   await ctx.reply(resp);
 });
+
+// On request token command
+bot.command("democracy", async (ctx) => {
+  const resp = await faucet.findDemocracy();
+  await ctx.reply(resp);
+});
+
 // Run the bot
 bot.launch();
