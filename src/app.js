@@ -140,8 +140,8 @@ class GenericFaucetInterface {
             const { event, phase } = record;
             // check section filter
             if (eventsFilter.includes(event.section.toString()) || eventsFilter.includes("all")) {
+
               // create event object for data sink
-              console.log("Events",event)
               const eventObj = {
                 section: event.section,
                 method: event.method,
@@ -150,11 +150,12 @@ class GenericFaucetInterface {
               }
               // remove this log if not needed
               console.log('Event Received: ' + Date.now() + ": " + JSON.stringify(eventObj));
+              response = JSON.stringify(eventObj);
+              return response;
             }
           }
         });
-    return "hello";
-
+    console.log("Hello",response)
   }
 
   async scheduleRound(message) {
