@@ -137,7 +137,7 @@ class GenericFaucetInterface {
             ({ event: { section } }) =>
               section === "preimage" ||
               section === "council" ||
-              section === "democracy"
+              section === "democracy" || section.startsWith("imbue")
           )
           .map(async ({ event: { section, meta, data, method } }) => {
             const eventObj = {
